@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Work Timesheet</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: one form sheet on a cool grey desk. Basis strip, worker block, activity ledger with live hour split,
+   daily totals, then two signature panels. Amber is reserved for overtime. */
+:root {
+  color-scheme: light;
+  --bg: #E9EDF1;
+  --paper: #FFFFFF;
+  --field: #F4F7F9;
+  --ink: #14202B;
+  --muted: #566475;
+  --rule: #C7D0D8;
+  --accent: #0A5A78;
+  --accent-ink: #FFFFFF;
+  --ot: #8F4400;
+  --ot-bg: #FCEBD0;
+  --ok: #17704A;
+  --ok-bg: #DDF2E6;
+  --err: #B3261E;
+  --err-bg: #FBE4E2;
+  --f-display: 'IBM Plex Sans Condensed', 'Arial Narrow', 'Helvetica Neue', sans-serif;
+  --f-body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E151B; --paper: #16202A; --field: #1B2732; --ink: #E5ECF2; --muted: #93A2B0; --rule: #2D3B48;
+    --accent: #5DB9DC; --accent-ink: #08212C; --ot: #F2B65E; --ot-bg: #2E2413;
+    --ok: #5CC692; --ok-bg: #12301F; --err: #F58B83; --err-bg: #3A1B19;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E151B; --paper: #16202A; --field: #1B2732; --ink: #E5ECF2; --muted: #93A2B0; --rule: #2D3B48;
+  --accent: #5DB9DC; --accent-ink: #08212C; --ot: #F2B65E; --ot-bg: #2E2413;
+  --ok: #5CC692; --ok-bg: #12301F; --err: #F58B83; --err-bg: #3A1B19;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 14px;
+  line-height: 1.45;
+  padding-block: 20px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.sheet {
+  max-width: 1080px;
+  margin: 0 auto;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 24px;
+  display: grid;
+  gap: 28px;
+}
+.sheet > * { min-width: 0; }
+
+.head { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: flex-end; }
+.eyebrow { margin: 0 0 4px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0; font: 700 34px/1.05 var(--f-display); letter-spacing: .01em; text-wrap: balance; }
+h2 { margin: 0 0 10px; font: 600 18px/1.2 var(--f-display); letter-spacing: .02em; text-transform: uppercase; }
+h3 { margin: 0 0 8px; font: 600 15px/1.2 var(--f-display); letter-spacing: .06em; text-transform: uppercase; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+button {
+  font: 500 13px var(--f-body);
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.primary:hover { filter: brightness(1.08); }
+button.warn { border-color: var(--err); color: var(--err); }
+button:focus-visible, input:focus-visible, select:focus-visible, canvas:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.basis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); border: 1px solid var(--rule); }
+.basis div { padding: 10px 14px; border-right: 1px solid var(--rule); }
+.basis div:last-child { border-right: 0; }
+.basis dt { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.basis dd { margin: 2px 0 0; font: 500 18px var(--f-mono); }
+.basis .ot dd { color: var(--ot); }
+.basis dl, .basis { margin: 0; }
+.basis > div { margin: 0; }
+@media (max-width: 640px) {
+  .basis div { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .basis div:last-child { border-bottom: 0; }
+}
+
+label, .lbl { display: block; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+input[type="text"], input[type="date"], select {
+  width: 100%;
+  font: 14px var(--f-body);
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 7px 8px;
+  min-width: 0;
+}
+input::placeholder { color: var(--muted); opacity: .75; }
+
+.worker { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+
+.ledger { overflow-x: auto; border: 1px solid var(--rule); }
+table { border-collapse: collapse; width: 100%; min-width: 1000px; }
+th {
+  text-align: left; font: 500 11px var(--f-body); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); background: var(--field); padding: 8px; border-bottom: 1px solid var(--rule); white-space: nowrap;
+}
+td { padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+td.n { font: 500 12px var(--f-mono); color: var(--muted); width: 32px; }
+th.r, td.hrs { text-align: right; }
+td.hrs { font: 500 14px var(--f-mono); font-variant-numeric: tabular-nums; width: 92px; white-space: nowrap; }
+td.hrs small { display: block; font: 400 10px var(--f-body); color: var(--muted); }
+td.ot.on { background: var(--ot-bg); color: var(--ot); }
+tr.bad td, tr.clash td { background: var(--err-bg); }
+tr.bad select, tr.clash select { border-color: var(--err); }
+tfoot td { background: var(--field); font-weight: 600; border-bottom: 0; }
+tfoot td.hrs { font-size: 15px; }
+tfoot td.ot.on { background: var(--ot-bg); }
+col.c-d { width: 138px; } col.c-w { width: 130px; } col.c-l { width: 170px; } col.c-t { width: 96px; } col.c-x { width: 44px; }
+button.icon { padding: 4px 9px; font-size: 16px; line-height: 1; color: var(--muted); }
+button.icon:hover { color: var(--err); border-color: var(--err); }
+.addrow { margin-top: 10px; }
+
+.notes { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 4px; }
+.notes li { color: var(--err); background: var(--err-bg); padding: 6px 10px; border-radius: 3px; font-size: 13px; }
+.days { display: grid; gap: 0; border: 1px solid var(--rule); }
+.day {
+  display: grid; grid-template-columns: minmax(150px, 1.4fr) repeat(3, minmax(80px, .6fr)) minmax(160px, 1.4fr);
+  gap: 8px 12px; padding: 8px 12px; border-bottom: 1px solid var(--rule); align-items: center;
+}
+.day:last-child { border-bottom: 0; }
+.day .v { font: 500 14px var(--f-mono); font-variant-numeric: tabular-nums; }
+.day .v.ot { color: var(--ot); }
+.day small { display: block; font: 400 10px var(--f-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.chip { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+.chip.ok { background: var(--ok-bg); color: var(--ok); }
+.chip.open { background: var(--field); color: var(--muted); border: 1px solid var(--rule); }
+@media (max-width: 720px) { .day { grid-template-columns: 1fr 1fr 1fr; } .day > :first-child, .day > :last-child { grid-column: 1 / -1; } }
+.empty { padding: 12px; color: var(--muted); }
+
+.sigs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.sig { border: 1px solid var(--rule); padding: 14px; display: grid; gap: 10px; align-content: start; }
+.pad { position: relative; border: 1px solid var(--rule); border-radius: 3px; background: var(--field); height: 130px; }
+.pad canvas { display: block; width: 100%; height: 100%; color: var(--ink); touch-action: none; cursor: crosshair; }
+.pad::after {
+  content: ""; position: absolute; left: 12px; right: 12px; bottom: 26px; border-bottom: 1px solid var(--muted); opacity: .6; pointer-events: none;
+}
+.pad .hint { position: absolute; left: 12px; bottom: 6px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); pointer-events: none; }
+.pad .x { position: absolute; left: 12px; bottom: 32px; font: 500 14px var(--f-mono); color: var(--muted); pointer-events: none; }
+.pad.signed .hint { display: none; }
+.sigmeta { display: grid; grid-template-columns: 1.6fr 1fr; gap: 10px; }
+.sigtools { display: flex; justify-content: flex-end; }
+@media (max-width: 420px) { .sigmeta { grid-template-columns: 1fr; } }
+
+#status { min-height: 1.4em; color: var(--muted); font-size: 13px; }
+#csvbox { width: 100%; height: 120px; font: 12px var(--f-mono); color: var(--ink); background: var(--field); border: 1px solid var(--rule); }
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .sheet { border: 0; }
+  .actions, .addrow, button.icon, .sigtools, #status { display: none !important; }
+}
+@media (prefers-reduced-motion: no-preference) { button { transition: border-color .12s, filter .12s; } }
+body{margin:0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+
+<main class="sheet">
+  <header class="head">
+    <div>
+      <p class="eyebrow">Labour hours record</p>
+      <h1>Work Timesheet</h1>
+    </div>
+    <div class="actions">
+      <button type="button" id="copy">Copy as CSV</button>
+      <button type="button" id="reset">New timesheet</button>
+    </div>
+  </header>
+
+  <dl class="basis" aria-label="Basis of hours">
+    <div><dt>Normal hours</dt><dd>0830 – 1730</dd></div>
+    <div><dt>Lunch break (deducted)</dt><dd>1200 – 1300</dd></div>
+    <div class="ot"><dt>Overtime</dt><dd>After 1730</dd></div>
+  </dl>
+
+  <section class="worker" aria-label="Worker">
+    <div>
+      <label for="worker">Worker name</label>
+      <select id="worker"></select>
+    </div>
+    <div>
+      <label for="skill">Skill level</label>
+      <select id="skill"></select>
+    </div>
+  </section>
+
+  <section aria-label="Activities">
+    <h2>Activities</h2>
+    <div class="ledger">
+      <table>
+        <colgroup>
+          <col style="width:32px"><col class="c-d"><col class="c-w"><col><col class="c-l"><col class="c-t"><col class="c-t"><col style="width:92px"><col style="width:92px"><col class="c-x">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>#</th><th>Date</th><th>Work order</th><th>Activity name</th><th>Location</th>
+            <th>Start</th><th>End</th><th class="r">Normal h</th><th class="r">OT h</th><th><span class="sr" hidden>Remove</span></th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="7">Total hours</td>
+            <td class="hrs" id="tot-n">0.00</td>
+            <td class="hrs ot" id="tot-o">0.00</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="addrow"><button type="button" class="primary" id="add">+ Add activity</button></div>
+  </section>
+
+  <section aria-label="Daily totals">
+    <h2>Daily totals</h2>
+    <ul class="notes" id="notes"></ul>
+    <div class="days" id="days"></div>
+    <p id="status" role="status" aria-live="polite"></p>
+    <textarea id="csvbox" readonly hidden aria-label="CSV text to copy"></textarea>
+  </section>
+
+  <section class="sigs" aria-label="Signatures">
+    <div class="sig">
+      <h3>Submitted by</h3>
+      <div class="pad" id="wrap-sub">
+        <canvas id="cv-sub" tabindex="0" aria-label="Signature pad for submitted by"></canvas>
+        <span class="x">×</span><span class="hint">Sign here</span>
+      </div>
+      <div class="sigtools"><button type="button" id="clr-sub">Clear signature</button></div>
+      <div class="sigmeta">
+        <div><label for="nm-sub">Name</label><input type="text" id="nm-sub" autocomplete="off"></div>
+        <div><label for="dt-sub">Date</label><input type="date" id="dt-sub"></div>
+      </div>
+    </div>
+    <div class="sig">
+      <h3>Approved by</h3>
+      <div class="pad" id="wrap-app">
+        <canvas id="cv-app" tabindex="0" aria-label="Signature pad for approved by"></canvas>
+        <span class="x">×</span><span class="hint">Sign here</span>
+      </div>
+      <div class="sigtools"><button type="button" id="clr-app">Clear signature</button></div>
+      <div class="sigmeta">
+        <div><label for="nm-app">Name</label><input type="text" id="nm-app" autocomplete="off"></div>
+        <div><label for="dt-app">Date</label><input type="date" id="dt-app"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  // Predetermined lists, taken from Name_List.xlsx (Workers sheet). Edit here to add or remove people.
+  var SKILLS = [
+    "Activity Analysis Observor",
+    "Cost Engineer",
+    "Crane Operator (50 tons Crane)",
+    "Foreman",
+    "Maintenance Manager",
+    "Pipe Fitter",
+    "Piping Foreman",
+    "Piping Supervisor / ACS",
+    "Planner",
+    "QC Supervisor",
+    "RE Fitter",
+    "RE Supervisor",
+    "Rigger",
+    "Rigger / Signaller",
+    "Rigger / Signalman",
+    "Safety coordinator",
+    "Senior Safety coordinator",
+    "Site Manager",
+    "Static Fitter",
+    "Static Foreman",
+    "Static Supervisor",
+    "Welder - SS"
+  ];
+  var WORKERS = [
+    {"name": "Abdul Rahman Bin Rais", "skill": "Rigger / Signalman"},
+    {"name": "Arumugam Vetrivel", "skill": "RE Fitter"},
+    {"name": "Aung Myat Thu I", "skill": "Piping Supervisor / ACS"},
+    {"name": "Aung Pyin Nyar Thet", "skill": "Maintenance Manager"},
+    {"name": "Baljit Singh", "skill": "Rigger / Signaller"},
+    {"name": "Battini Ramesh", "skill": "Welder - SS"},
+    {"name": "Bharati Vinod Kumar", "skill": "Static Fitter"},
+    {"name": "Borgin", "skill": "Crane Operator (50 tons Crane)"},
+    {"name": "Busa Thata Rao", "skill": "Welder - SS"},
+    {"name": "Cabandong Mervin Molina", "skill": "RE Fitter"},
+    {"name": "Challa Venkata Subba Reddy", "skill": "Piping Supervisor / ACS"},
+    {"name": "Damian Loreto Ventura", "skill": "RE Fitter"},
+    {"name": "Das Sapan", "skill": "Rigger"},
+    {"name": "Dawn Tan", "skill": "Cost Engineer"},
+    {"name": "Deva", "skill": "Pipe Fitter"},
+    {"name": "Gonthina Chiranjeevi", "skill": "Piping Foreman"},
+    {"name": "Guttula Srinivas", "skill": "Piping Foreman"},
+    {"name": "Jaya Gopal Balamurugan", "skill": "RE Supervisor"},
+    {"name": "Jayasankar Jaya Suriya", "skill": "RE Fitter"},
+    {"name": "Kalyana Sundaram Murali", "skill": "Piping Foreman"},
+    {"name": "KETPHIMAI AMNAT", "skill": "Pipe Fitter"},
+    {"name": "Krishnamoorthy Kothandaraman", "skill": "Static Fitter"},
+    {"name": "Kyaw Myo Htet", "skill": "Static Supervisor"},
+    {"name": "Kyaw Sein Lin", "skill": "Pipe Fitter"},
+    {"name": "Muthusamy Rajendran", "skill": "Rigger / Signaller"},
+    {"name": "Ng Hock Choon", "skill": "Static Supervisor"},
+    {"name": "Polanati Vinod Kumar", "skill": "Static Fitter"},
+    {"name": "R. Ajithkumar", "skill": "Activity Analysis Observor"},
+    {"name": "Ramakrishnan Vinoth", "skill": "Static Fitter"},
+    {"name": "Ramu Logvel", "skill": "Static Foreman"},
+    {"name": "Robert Leo David Boon", "skill": "Site Manager"},
+    {"name": "Saravanan Velmurugan", "skill": "QC Supervisor"},
+    {"name": "Selvam Guruprasath", "skill": "Static Fitter"},
+    {"name": "Serker Ashim", "skill": "Safety coordinator"},
+    {"name": "Sethuraj Manoharan", "skill": "QC Supervisor"},
+    {"name": "Singh Chandan Kumar", "skill": "Static Supervisor"},
+    {"name": "Subbaiah Ajithkumar", "skill": "Rigger / Signaller"},
+    {"name": "Tamilarasan Silambarasan", "skill": "Static Fitter"},
+    {"name": "Tan Sian Peng", "skill": "Senior Safety coordinator"},
+    {"name": "Tay Zar Linn", "skill": "RE Supervisor"},
+    {"name": "Than Min Oo", "skill": "Static Foreman"},
+    {"name": "Thanabal Selladurai Arul", "skill": "Foreman"},
+    {"name": "Thetchinamurthy Senthil Arun", "skill": "Crane Operator (50 tons Crane)"},
+    {"name": "Thu Ya Soe", "skill": "Pipe Fitter"},
+    {"name": "Tirumalasetti Dorababu", "skill": "Piping Foreman"},
+    {"name": "Vellara Achuthan Renjumon", "skill": "Piping Supervisor / ACS"},
+    {"name": "Vempada Narsinga Rao", "skill": "Welder - SS"},
+    {"name": "Win Min Then", "skill": "Planner"},
+    {"name": "Win Swe", "skill": "RE Supervisor"},
+    {"name": "Win Zaw Oo", "skill": "Static Foreman"},
+    {"name": "Ymas Kenneth Tumabon", "skill": "RE Fitter"},
+    {"name": "Zayar Lwin", "skill": "Pipe Fitter"},
+    {"name": "Zin Htoo Aung", "skill": "RE Fitter"}
+  ];
+
+  var DAY_START = 510, DAY_END = 1050, LUNCH_S = 720, LUNCH_E = 780, MAX_T = 1320, STEP = 15, NORMAL_DAY = 480;
+  var KEY = 'work-timesheet-draft-v1';
+
+  function $(s) { return document.querySelector(s); }
+  function pad2(n) { return String(n).padStart(2, '0'); }
+  function fmt(m) { return pad2(Math.floor(m / 60)) + pad2(m % 60); }
+  function hrs(m) { return (m / 60).toFixed(2); }
+  function overlap(a, b, c, d) { return Math.max(0, Math.min(b, d) - Math.max(a, c)); }
+  function today() { var d = new Date(); return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function longDate(s) {
+    if (!s) return 'No date';
+    var d = new Date(s + 'T00:00:00');
+    if (isNaN(d)) return s;
+    return d.toLocaleDateString('en-SG', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  var uid = 0;
+  var rows = [];
+  var sigs = { sub: { strokes: [] }, app: { strokes: [] } };
+
+  var workerSel = $('#worker'), skillSel = $('#skill'), tbody = $('#rows');
+
+  workerSel.innerHTML = '<option value="">Select worker…</option>' + WORKERS.map(function (w) {
+    return '<option value="' + w.name + '">' + w.name + '</option>';
+  }).join('');
+  skillSel.innerHTML = '<option value="">Select skill level…</option>' + SKILLS.map(function (s) {
+    return '<option value="' + s + '">' + s + '</option>';
+  }).join('');
+
+  workerSel.addEventListener('change', function () {
+    var w = WORKERS.filter(function (x) { return x.name === workerSel.value; })[0];
+    if (w) skillSel.value = w.skill;
+    save();
+  });
+  skillSel.addEventListener('change', save);
+
+  function timeOpts(sel) {
+    var h = '<optgroup label="Normal hours">', m;
+    for (m = DAY_START; m <= DAY_END; m += STEP) h += '<option value="' + m + '"' + (m === sel ? ' selected' : '') + '>' + fmt(m) + '</option>';
+    h += '</optgroup><optgroup label="Overtime (after 1730)">';
+    for (m = DAY_END + STEP; m <= MAX_T; m += STEP) h += '<option value="' + m + '"' + (m === sel ? ' selected' : '') + '>' + fmt(m) + '</option>';
+    return h + '</optgroup>';
+  }
+
+  function newRow() {
+    var last = rows[rows.length - 1];
+    if (!last) return { uid: ++uid, date: today(), wo: '', act: '', loc: '', start: DAY_START, end: DAY_END };
+    var s = last.end > last.start ? last.end : DAY_START;
+    s = Math.min(s, MAX_T - STEP);
+    var e = s < DAY_END ? DAY_END : Math.min(s + 60, MAX_T);
+    return { uid: ++uid, date: last.date, wo: '', act: '', loc: '', start: s, end: e };
+  }
+
+  function buildRow(r, i) {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td class="n"></td>' +
+      '<td><input type="date" data-k="date" id="d-' + r.uid + '" aria-label="Date"></td>' +
+      '<td><input type="text" data-k="wo" id="wo-' + r.uid + '" aria-label="Work order" placeholder="e.g. WO-24817" autocomplete="off"></td>' +
+      '<td><input type="text" data-k="act" id="act-' + r.uid + '" aria-label="Activity name" placeholder="e.g. Pump P-102 seal replacement" autocomplete="off"></td>' +
+      '<td><input type="text" data-k="loc" id="loc-' + r.uid + '" aria-label="Location" placeholder="e.g. Pump house, Bay 3" autocomplete="off"></td>' +
+      '<td><select data-k="start" id="s-' + r.uid + '" aria-label="Start time">' + timeOpts(r.start) + '</select></td>' +
+      '<td><select data-k="end" id="e-' + r.uid + '" aria-label="End time">' + timeOpts(r.end) + '</select></td>' +
+      '<td class="hrs nrm"></td><td class="hrs ot"></td>' +
+      '<td><button type="button" class="icon" aria-label="Remove row">×</button></td>';
+    tr.querySelector('[data-k="date"]').value = r.date;
+    tr.querySelector('[data-k="wo"]').value = r.wo;
+    tr.querySelector('[data-k="act"]').value = r.act;
+    tr.querySelector('[data-k="loc"]').value = r.loc;
+    function onEdit(e) {
+      var k = e.target.getAttribute('data-k');
+      if (!k) return;
+      r[k] = (k === 'start' || k === 'end') ? parseInt(e.target.value, 10) : e.target.value;
+      update();
+    }
+    tr.addEventListener('input', onEdit);
+    tr.addEventListener('change', onEdit);
+    tr.querySelector('button.icon').addEventListener('click', function () {
+      rows = rows.filter(function (x) { return x !== r; });
+      if (!rows.length) rows.push(newRow());
+      rebuild();
+    });
+    return tr;
+  }
+
+  function rebuild() {
+    tbody.innerHTML = '';
+    rows.forEach(function (r, i) { tbody.appendChild(buildRow(r, i)); });
+    update();
+  }
+
+  function calc(r) {
+    if (r.end <= r.start) return { bad: true, normal: 0, ot: 0, lunch: 0 };
+    var lunch = overlap(r.start, r.end, LUNCH_S, LUNCH_E);
+    return {
+      bad: false,
+      lunch: lunch,
+      normal: overlap(r.start, r.end, DAY_START, DAY_END) - lunch,
+      ot: overlap(r.start, r.end, DAY_END, 1e6)
+    };
+  }
+
+  function update() {
+    var trs = tbody.children, notes = [], days = {}, totN = 0, totO = 0;
+    var c = rows.map(calc);
+
+    rows.forEach(function (r, i) {
+      var tr = trs[i], res = c[i];
+      tr.classList.toggle('bad', res.bad);
+      tr.classList.remove('clash');
+      tr.querySelector('.n').textContent = i + 1;
+      var nc = tr.querySelector('.nrm'), oc = tr.querySelector('.ot');
+      nc.innerHTML = hrs(res.normal) + (res.lunch ? '<small>lunch −' + hrs(res.lunch) + '</small>' : '');
+      oc.textContent = hrs(res.ot);
+      oc.classList.toggle('on', res.ot > 0);
+      if (res.bad) { notes.push('Row ' + (i + 1) + ': end time must be later than start time.'); return; }
+      totN += res.normal; totO += res.ot;
+      var k = r.date || '';
+      days[k] = days[k] || { n: 0, o: 0 };
+      days[k].n += res.normal; days[k].o += res.ot;
+    });
+
+    for (var a = 0; a < rows.length; a++) {
+      for (var b = a + 1; b < rows.length; b++) {
+        if (c[a].bad || c[b].bad || rows[a].date !== rows[b].date) continue;
+        if (rows[a].start < rows[b].end && rows[b].start < rows[a].end) {
+          trs[a].classList.add('clash'); trs[b].classList.add('clash');
+          notes.push('Rows ' + (a + 1) + ' and ' + (b + 1) + ' overlap on ' + longDate(rows[a].date) + '.');
+        }
+      }
+    }
+
+    $('#tot-n').textContent = hrs(totN);
+    var to = $('#tot-o'); to.textContent = hrs(totO); to.classList.toggle('on', totO > 0);
+
+    $('#notes').innerHTML = notes.map(function (n) { return '<li>' + n + '</li>'; }).join('');
+
+    var keys = Object.keys(days).sort();
+    $('#days').innerHTML = keys.length ? keys.map(function (k) {
+      var d = days[k], left = Math.max(0, NORMAL_DAY - d.n);
+      var chip = left === 0 ? '<span class="chip ok">Normal hours fully allocated</span>'
+        : '<span class="chip open">' + hrs(left) + ' h of normal time unallocated</span>';
+      return '<div class="day"><div><strong>' + longDate(k) + '</strong></div>' +
+        '<div><small>Normal</small><span class="v">' + hrs(d.n) + '</span></div>' +
+        '<div><small>Overtime</small><span class="v ot">' + hrs(d.o) + '</span></div>' +
+        '<div><small>Total</small><span class="v">' + hrs(d.n + d.o) + '</span></div>' +
+        '<div>' + chip + '</div></div>';
+    }).join('') : '<div class="empty">Add an activity with a valid start and end time to see daily totals.</div>';
+
+    save();
+  }
+
+  $('#add').addEventListener('click', function () {
+    rows.push(newRow());
+    rebuild();
+    var last = tbody.lastElementChild;
+    if (last) last.querySelector('[data-k="wo"]').focus();
+  });
+
+  /* ---------- status line ---------- */
+  var statusEl = $('#status'), statusTimer;
+  function say(msg) {
+    statusEl.textContent = msg;
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(function () { statusEl.textContent = ''; }, 5000);
+  }
+
+  /* ---------- CSV copy ---------- */
+  function q(v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  $('#copy').addEventListener('click', function () {
+    var lines = [['Worker', 'Skill level', 'Date', 'Start', 'End', 'Work order', 'Activity', 'Location', 'Normal hours', 'OT hours'].join(',')];
+    rows.forEach(function (r) {
+      var x = calc(r);
+      lines.push([workerSel.value, skillSel.value, r.date, fmt(r.start), fmt(r.end), r.wo, r.act, r.loc, hrs(x.normal), hrs(x.ot)].map(q).join(','));
+    });
+    var csv = lines.join('\n'), box = $('#csvbox');
+    function fallback() {
+      box.hidden = false; box.value = csv; box.focus(); box.select();
+      say('Copying is blocked here. The CSV is selected below; copy it with Ctrl+C or Cmd+C.');
+    }
+    try {
+      navigator.clipboard.writeText(csv).then(function () {
+        box.hidden = true; say('Copied ' + rows.length + ' row' + (rows.length === 1 ? '' : 's') + ' as CSV.');
+      }, fallback);
+    } catch (e) { fallback(); }
+  });
+
+  /* ---------- signature pads ---------- */
+  function makePad(id) {
+    var cv = $('#cv-' + id), wrap = $('#wrap-' + id), ctx = cv.getContext('2d'), cur = null;
+    function draw() {
+      var r = cv.getBoundingClientRect();
+      ctx.clearRect(0, 0, r.width, r.height);
+      ctx.strokeStyle = getComputedStyle(cv).color;
+      ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      sigs[id].strokes.forEach(function (s) {
+        ctx.beginPath();
+        s.forEach(function (p, i) {
+          var x = p[0] * r.width, y = p[1] * r.height;
+          if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+        });
+        if (s.length === 1) ctx.lineTo(s[0][0] * r.width + 0.1, s[0][1] * r.height);
+        ctx.stroke();
+      });
+      wrap.classList.toggle('signed', sigs[id].strokes.length > 0);
+    }
+    function size() {
+      var r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+      cv.width = Math.max(1, Math.round(r.width * d)); cv.height = Math.max(1, Math.round(r.height * d));
+      ctx.setTransform(d, 0, 0, d, 0, 0);
+      draw();
+    }
+    function pt(e) {
+      var r = cv.getBoundingClientRect();
+      return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
+    }
+    cv.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      try { cv.setPointerCapture(e.pointerId); } catch (x) {}
+      cur = [pt(e)]; sigs[id].strokes.push(cur); draw();
+    });
+    cv.addEventListener('pointermove', function (e) { if (cur) { cur.push(pt(e)); draw(); } });
+    function end() {
+      if (!cur) return;
+      cur = null;
+      var dt = $('#dt-' + id);
+      if (!dt.value) dt.value = today();
+      save();
+    }
+    cv.addEventListener('pointerup', end);
+    cv.addEventListener('pointercancel', end);
+    $('#clr-' + id).addEventListener('click', function () { sigs[id].strokes = []; draw(); save(); });
+    if (window.ResizeObserver) new ResizeObserver(size).observe(cv); else window.addEventListener('resize', size);
+    return { draw: draw, size: size };
+  }
+  var pads = { sub: makePad('sub'), app: makePad('app') };
+  function redrawAll() { pads.sub.draw(); pads.app.draw(); }
+  try {
+    new MutationObserver(redrawAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redrawAll);
+  } catch (e) {}
+  ['nm-sub', 'dt-sub', 'nm-app', 'dt-app'].forEach(function (id) { $('#' + id).addEventListener('input', save); });
+
+  /* ---------- draft (convenience only, this browser) ---------- */
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({
+        worker: workerSel.value, skill: skillSel.value, rows: rows,
+        sub: { name: $('#nm-sub').value, date: $('#dt-sub').value, strokes: sigs.sub.strokes },
+        app: { name: $('#nm-app').value, date: $('#dt-app').value, strokes: sigs.app.strokes }
+      }));
+    } catch (e) {}
+  }
+  function load() {
+    try {
+      var d = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (!d || !Array.isArray(d.rows) || !d.rows.length) return false;
+      rows = d.rows.map(function (r) {
+        return { uid: ++uid, date: r.date || '', wo: r.wo || '', act: r.act || '', loc: r.loc || '',
+          start: +r.start || DAY_START, end: +r.end || DAY_END };
+      });
+      workerSel.value = d.worker || ''; skillSel.value = d.skill || '';
+      ['sub', 'app'].forEach(function (k) {
+        var s = d[k] || {};
+        $('#nm-' + k).value = s.name || ''; $('#dt-' + k).value = s.date || '';
+        sigs[k].strokes = Array.isArray(s.strokes) ? s.strokes : [];
+      });
+      return true;
+    } catch (e) { return false; }
+  }
+
+  var resetBtn = $('#reset'), resetTimer;
+  resetBtn.addEventListener('click', function () {
+    if (resetBtn.dataset.armed !== '1') {
+      resetBtn.dataset.armed = '1'; resetBtn.textContent = 'Click again to clear all'; resetBtn.classList.add('warn');
+      resetTimer = setTimeout(disarm, 4000);
+      return;
+    }
+    disarm();
+    rows = [{ uid: ++uid, date: today(), wo: '', act: '', loc: '', start: DAY_START, end: DAY_END }];
+    workerSel.value = ''; skillSel.value = '';
+    ['sub', 'app'].forEach(function (k) { $('#nm-' + k).value = ''; $('#dt-' + k).value = ''; sigs[k].strokes = []; });
+    $('#csvbox').hidden = true;
+    rebuild(); redrawAll();
+    say('Started a new timesheet.');
+  });
+  function disarm() {
+    clearTimeout(resetTimer);
+    resetBtn.dataset.armed = ''; resetBtn.textContent = 'New timesheet'; resetBtn.classList.remove('warn');
+  }
+
+  if (!load()) rows = [{ uid: ++uid, date: today(), wo: '', act: '', loc: '', start: DAY_START, end: DAY_END }];
+  rebuild();
+  pads.sub.size(); pads.app.size();
+})();
+</script>
+
+</body>
+</html>
